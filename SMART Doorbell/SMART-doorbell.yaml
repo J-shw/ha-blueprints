@@ -194,7 +194,7 @@ actions:
       - choose:
           - conditions:
               - condition: template
-                value_template: "{{ input_tts_enabled }}"
+                value_template: "{{ tts_enabled }}"
             sequence:
               - action: tts.google_translate_say
                 target:
