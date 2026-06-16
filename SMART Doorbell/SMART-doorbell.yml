@@ -4,6 +4,8 @@ blueprint:
    The SMART doorbell blueprint. 
    
    Flash a light, send TTS to speakers or send phone notifications all when the doorbell is pressed.
+
+   Please define either a doorbell event or a binary sensor that detects when the doorbell is pressed.
   domain: automation
   input:
     
@@ -14,6 +16,14 @@ blueprint:
         entity:
           filter:
             - domain: event
+
+    doorbell_binary_sensor:
+      name: Doorbell Binary Sensor
+      description: The binary sensor that detects when the doorbell is pressed.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
     
     action_settings:
       name: "Actions *"
@@ -128,8 +138,20 @@ blueprint:
                   label: Sunday
 
 triggers:
-  - trigger: state
+  - trigger: event
     entity_id: !input doorbell_event
+
+  - trigger: state
+    entity_id: !input doorbell_binary_sensor
+    from: 'off'
+    to: 'on'
+
+conditions:
+  - condition: time
+    after: !input time_settings.after_time
+    before: !input time_settings.before_time
+    weekday:
+      - !input time_settings.day_of_week
 
 actions:
   - action: >
