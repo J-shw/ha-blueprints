@@ -85,6 +85,7 @@ blueprint:
         tts_target_speaker:
           name: TTS Target Speaker
           description: The speaker to play the TTS message on.
+          default: []
           selector:
             entity:
               domain: media_player
@@ -151,6 +152,7 @@ variables:
   light_flash_count: !input light_flash_count
   light_flash_duration: !input light_flash_duration
   target_light: !input target_light
+
   tts_enabled: !input tts_enabled
   tts_message: !input tts_message
   tts_target_speaker: !input tts_target_speaker
@@ -176,18 +178,26 @@ conditions:
 actions:
   - action: >
       # Light Flashing Action
-      if target_light:
-        for i in range(light_flash_count):
-          service: light.toggle
-          target:
-            entity_id: target_light
-          delay:
-            seconds: light_flash_duration
-      
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ target_light is defined or true }}"
+            sequence:
+              - repeat:
+                  count: !input light_flash_count
+                  sequence:
+                    - action: light.toggle
+                      target: !input target_light
+                    - delay: !input light_flash_duration
+
       # TTS Action
-      if tts_enabled and tts_target_speaker:
-        service: tts.google_translate_say
-        target:
-          entity_id: tts_target_speaker
-        message:
-          value: tts_message
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ input_tts_enabled }}"
+            sequence:
+              - action: tts.google_translate_say
+                target:
+                  entity_id: !input tts_target_speaker
+                data:
+                  message: !input tts_message
