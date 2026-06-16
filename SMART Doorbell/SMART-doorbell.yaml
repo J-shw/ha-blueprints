@@ -159,4 +159,26 @@ actions:
       light_flash_duration = !input action_settings.light_settings.light_flash_duration
       target_light = !input action_settings.light_settings.target_light
 
+      tts_enabled = !input action_settings.tts_settings.tts_enabled
+      tts_message = !input action_settings.tts_settings.tts_message
+      tts_target_speaker = !input action_settings.tts_settings.tts_target_speaker
+
+      # Light Flashing Action
+      if target_light:
+        for i in range(light_flash_count):
+          service: light.toggle
+          target:
+            entity_id: target_light
+          delay:
+            seconds: light_flash_duration
       
+      # TTS Action
+      if tts_enabled and tts_target_speaker:
+        service: tts.google_translate_say
+        target:
+          entity_id: tts_target_speaker
+        message:
+          value: tts_message
+      
+
+
