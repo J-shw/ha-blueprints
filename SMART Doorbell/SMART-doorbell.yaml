@@ -34,6 +34,7 @@ blueprint:
     
     light_settings:
       name: Lights
+      icon: mdi:lightbulb-outline
       description: Select the lights to flash when the doorbell is triggered.
       collapsed: true
       input:
@@ -65,6 +66,7 @@ blueprint:
     
     tts_settings:
       name: TTS Settings
+      icon: mdi:volume-high-outline
       description: Configure text-to-speech settings for the doorbell automation.
       collapsed: true
       input:
@@ -139,21 +141,19 @@ blueprint:
                   label: Sunday
 
 variables:
+  doorbell_event: !input doorbell_event
+  doorbell_binary_sensor: !input doorbell_binary_sensor
 
-  doorbell_event: !input trigger_settings.doorbell_event
-  doorbell_binary_sensor: !input trigger_settings.doorbell_binary_sensor
-  trigger_type: !input trigger_settings.trigger_type
+  after_time: !input after_time
+  before_time: !input before_time
+  day_of_week: !input day_of_week
 
-  after_time: !input time_settings.after_time
-  before_time: !input time_settings.before_time
-  day_of_week: !input time_settings.day_of_week
-
-  light_flash_count: !input light_settings.light_flash_count
-  light_flash_duration: !input light_settings.light_flash_duration
-  target_light: !input light_settings.target_light
-  tts_enabled: !input tts_settings.tts_enabled
-  tts_message: !input tts_settings.tts_message
-  tts_target_speaker: !input tts_settings.tts_target_speaker
+  light_flash_count: !input light_flash_count
+  light_flash_duration: !input light_flash_duration
+  target_light: !input target_light
+  tts_enabled: !input tts_enabled
+  tts_message: !input tts_message
+  tts_target_speaker: !input tts_target_speaker
 
 triggers:
   - platform: event
