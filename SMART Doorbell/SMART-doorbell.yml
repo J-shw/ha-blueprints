@@ -1,0 +1,140 @@
+blueprint:
+  name: SMART Doorbell
+  description: >
+   The SMART doorbell blueprint. 
+   
+   Flash a light, send TTS to speakers or send phone notifications all when the doorbell is pressed.
+  domain: automation
+  input:
+    
+    doorbell_event:
+      name: Doorbell Event
+      description: The event that triggers the doorbell automation.
+      selector:
+        entity:
+          filter:
+            - domain: event
+    
+    action_settings:
+      name: "Actions *"
+      icon: mdi:lightbulb-outline
+      description: Select the actions to perform when the doorbell is triggered.
+      collapsed: true
+      input:
+        light_settings:
+          name: Lights
+          description: Select the lights to flash when the doorbell is triggered.
+          collapsed: true
+          input:
+            target_light:
+              name: Lights
+              description: The lights to flash when the doorbell is triggered.
+              selector:
+                target:
+                  entity:
+                    - domain: light
+            light_flash_count:
+              name: Light Flash Count
+              description: The number of times the lights should flash when the doorbell is triggered.
+              default: 3
+              selector:
+                number:
+                  min: 1
+                  max: 10
+                  step: 1
+            light_flash_duration:
+              name: Light Flash Duration
+              description: The duration of each light flash in seconds.
+              default: 0.5
+              selector:
+                number:
+                  min: 0.1
+                  max: 5
+                  step: 0.1
+        
+        tts_settings:
+          name: TTS Settings
+          description: Configure text-to-speech settings for the doorbell automation.
+          collapsed: true
+          input:
+            tts_enabled:
+              name: Enable TTS
+              description: Enable or disable text-to-speech notifications.
+              default: false
+              selector:
+                boolean:
+            tts_message:
+              name: TTS Message
+              description: The message to be spoken when the doorbell is triggered.
+              default: "Someone is at the door."
+              selector:
+                text:
+            tts_target_speaker:
+              name: TTS Target Speaker
+              description: The speaker to play the TTS message on.
+              selector:
+                entity:
+                  domain: media_player
+
+    time_settings:
+      name: "Time Settings *"
+      icon: mdi:clock-outline
+      description: Select the time-related settings for when the automation should run.
+      collapsed: true
+      input:
+        after_time:
+          name: After Time
+          description: The time after which the automation can run.
+          default: "00:00:00"
+          selector:
+            time:
+        
+        before_time:
+          name: Before Time
+          description: The time before which the automation can run.
+          default: "23:59:59"
+          selector:
+            time:
+        
+        day_of_week:
+          name: Day of Week
+          description: The days of the week on which the automation can run.
+          default:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - value: mon
+                  label: Monday
+                - value: tue
+                  label: Tuesday
+                - value: wed
+                  label: Wednesday
+                - value: thu
+                  label: Thursday
+                - value: fri
+                  label: Friday
+                - value: sat
+                  label: Saturday
+                - value: sun
+                  label: Sunday
+
+triggers:
+  - trigger: state
+    entity_id: !input doorbell_event
+
+actions:
+  - action: >
+      light_flash_count = !input action_settings.light_settings.light_flash_count
+      light_flash_duration = !input action_settings.light_settings.light_flash_duration
+      target_light = !input action_settings.light_settings.target_light
+
+      
