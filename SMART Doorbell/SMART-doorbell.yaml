@@ -8,83 +8,84 @@ blueprint:
    Please define either a doorbell event or a binary sensor that detects when the doorbell is pressed.
   domain: automation
   input:
-    
-    doorbell_event:
-      name: Doorbell Event
-      description: The event that triggers the doorbell automation.
-      selector:
-        entity:
-          filter:
-            - domain: event
-
-    doorbell_binary_sensor:
-      name: Doorbell Binary Sensor
-      description: The binary sensor that detects when the doorbell is pressed.
-      selector:
-        entity:
-          filter:
-            - domain: binary_sensor
-    
-    action_settings:
-      name: "Actions *"
-      icon: mdi:lightbulb-outline
-      description: Select the actions to perform when the doorbell is triggered.
+    trigger_settings:
+      name: "Trigger Settings *"
+      icon: mdi:bell-ring-outline
+      description: Select the trigger settings for the doorbell automation.
       collapsed: true
       input:
-        light_settings:
+        doorbell_event:
+          name: Doorbell Event (Optional)
+          description: The event that triggers the doorbell automation.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: event
+
+        doorbell_binary_sensor:
+          name: Doorbell Binary Sensor (Optional)
+          description: The binary sensor that detects when the doorbell is pressed.
+          default: []
+          selector:
+            entity:
+              filter:
+                - domain: binary_sensor
+    
+    light_settings:
+      name: Lights
+      description: Select the lights to flash when the doorbell is triggered.
+      collapsed: true
+      input:
+        target_light:
           name: Lights
-          description: Select the lights to flash when the doorbell is triggered.
-          collapsed: true
-          input:
-            target_light:
-              name: Lights
-              description: The lights to flash when the doorbell is triggered.
-              selector:
-                target:
-                  entity:
-                    - domain: light
-            light_flash_count:
-              name: Light Flash Count
-              description: The number of times the lights should flash when the doorbell is triggered.
-              default: 3
-              selector:
-                number:
-                  min: 1
-                  max: 10
-                  step: 1
-            light_flash_duration:
-              name: Light Flash Duration
-              description: The duration of each light flash in seconds.
-              default: 0.5
-              selector:
-                number:
-                  min: 0.1
-                  max: 5
-                  step: 0.1
-        
-        tts_settings:
-          name: TTS Settings
-          description: Configure text-to-speech settings for the doorbell automation.
-          collapsed: true
-          input:
-            tts_enabled:
-              name: Enable TTS
-              description: Enable or disable text-to-speech notifications.
-              default: false
-              selector:
-                boolean:
-            tts_message:
-              name: TTS Message
-              description: The message to be spoken when the doorbell is triggered.
-              default: "Someone is at the door."
-              selector:
-                text:
-            tts_target_speaker:
-              name: TTS Target Speaker
-              description: The speaker to play the TTS message on.
-              selector:
-                entity:
-                  domain: media_player
+          description: The lights to flash when the doorbell is triggered.
+          selector:
+            target:
+              entity:
+                - domain: light
+        light_flash_count:
+          name: Light Flash Count
+          description: The number of times the lights should flash when the doorbell is triggered.
+          default: 3
+          selector:
+            number:
+              min: 1
+              max: 10
+              step: 1
+        light_flash_duration:
+          name: Light Flash Duration
+          description: The duration of each light flash in seconds.
+          default: 0.5
+          selector:
+            number:
+              min: 0.1
+              max: 5
+              step: 0.1
+    
+    tts_settings:
+      name: TTS Settings
+      description: Configure text-to-speech settings for the doorbell automation.
+      collapsed: true
+      input:
+        tts_enabled:
+          name: Enable TTS
+          description: Enable or disable text-to-speech notifications.
+          default: false
+          selector:
+            boolean:
+        tts_message:
+          name: TTS Message
+          description: The message to be spoken when the doorbell is triggered.
+          default: "Someone is at the door."
+          selector:
+            text:
+        tts_target_speaker:
+          name: TTS Target Speaker
+          description: The speaker to play the TTS message on.
+          selector:
+            entity:
+              domain: media_player
 
     time_settings:
       name: "Time Settings *"
@@ -137,32 +138,43 @@ blueprint:
                 - value: sun
                   label: Sunday
 
-triggers:
-  - trigger: event
-    entity_id: !input doorbell_event
+variables:
 
-  - trigger: state
+  doorbell_event: !input trigger_settings.doorbell_event
+  doorbell_binary_sensor: !input trigger_settings.doorbell_binary_sensor
+  trigger_type: !input trigger_settings.trigger_type
+
+  after_time: !input time_settings.after_time
+  before_time: !input time_settings.before_time
+  day_of_week: !input time_settings.day_of_week
+
+  light_flash_count: !input light_settings.light_flash_count
+  light_flash_duration: !input light_settings.light_flash_duration
+  target_light: !input light_settings.target_light
+  tts_enabled: !input tts_settings.tts_enabled
+  tts_message: !input tts_settings.tts_message
+  tts_target_speaker: !input tts_settings.tts_target_speaker
+
+triggers:
+  - platform: event
+    event_type: state_changed
+    event_data:
+      entity_id: !input doorbell_event
+    id: use_event
+  - platform: state
     entity_id: !input doorbell_binary_sensor
-    from: 'off'
-    to: 'on'
+    from: "off"
+    to: "on"
+    id: use_binary
 
 conditions:
   - condition: time
-    after: !input time_settings.after_time
-    before: !input time_settings.before_time
-    weekday:
-      - !input time_settings.day_of_week
+    after: !input after_time
+    before: !input before_time
+    weekday: !input day_of_week
 
 actions:
   - action: >
-      light_flash_count = !input action_settings.light_settings.light_flash_count
-      light_flash_duration = !input action_settings.light_settings.light_flash_duration
-      target_light = !input action_settings.light_settings.target_light
-
-      tts_enabled = !input action_settings.tts_settings.tts_enabled
-      tts_message = !input action_settings.tts_settings.tts_message
-      tts_target_speaker = !input action_settings.tts_settings.tts_target_speaker
-
       # Light Flashing Action
       if target_light:
         for i in range(light_flash_count):
@@ -179,6 +191,3 @@ actions:
           entity_id: tts_target_speaker
         message:
           value: tts_message
-      
-
-
