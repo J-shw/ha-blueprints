@@ -17,19 +17,10 @@ blueprint:
       description: Select the trigger settings for the doorbell automation.
       collapsed: true
       input:
-        doorbell_event:
-          name: Doorbell Event
-          description: The event that triggers the doorbell automation.
-          default: {}
-          selector:
-            entity:
-              filter:
-                - domain: event
 
         doorbell_binary_sensor:
           name: Doorbell Binary Sensor
           description: The binary sensor that detects when the doorbell is pressed.
-          default: {}
           selector:
             entity:
               filter:
@@ -215,7 +206,6 @@ blueprint:
               domain: person
 
 variables:
-  doorbell_event: !input doorbell_event
   doorbell_binary_sensor: !input doorbell_binary_sensor
   doorbell_image_entity: !input doorbell_image_entity
 
@@ -242,11 +232,6 @@ variables:
 
 
 triggers:
-  - platform: event
-    event_type: state_changed
-    event_data:
-      entity_id: !input doorbell_event
-    id: use_event
   - platform: state
     entity_id: !input doorbell_binary_sensor
     from: "off"
