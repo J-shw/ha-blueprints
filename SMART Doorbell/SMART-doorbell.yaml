@@ -48,12 +48,12 @@ blueprint:
         light_flash_count:
           name: Light Flash Count
           description: The number of times the lights should flash when the doorbell is triggered.
-          default: 3
+          default: 4
           selector:
             number:
-              min: 1
+              min: 2
               max: 10
-              step: 1
+              step: 2
         light_flash_duration:
           name: Light Flash Duration
           description: The duration of each light flash in seconds.
