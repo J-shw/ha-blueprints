@@ -90,7 +90,6 @@ blueprint:
             entity:
               domain: notify
 
-
     light_settings:
       name: Lights
       icon: mdi:lightbulb-outline
@@ -126,7 +125,7 @@ blueprint:
     
     tts_settings:
       name: TTS Settings
-      icon: mdi:volume-high-outline
+      icon: mdi:account-voice
       description: Configure text-to-speech settings for the doorbell automation.
       collapsed: true
       input:
@@ -262,10 +261,13 @@ conditions:
   
   - condition: template
     value_template: >
-      {% set people = states | selectattr('entity_id', 'in', people_to_check) | list %}
-      {% set present_people = people | selectattr('state', 'eq', 'home') | list %}
-      {{ present_people | length > 0 }}
-
+      {% set people = [entities] if entities is string else entities %}
+      {% if people == none or people == [] or people == [''] %}
+        true
+      {% else %}
+        {{ states.person | selectattr('entity_id', 'in', people) | selectattr('state', 'eq', 'home') | list | length > 0 }}
+      {% endif %}
+      
 action:
   - if:
       - condition: template
