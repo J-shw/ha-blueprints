@@ -175,29 +175,29 @@ conditions:
     before: !input before_time
     weekday: !input day_of_week
 
-actions:
-  - action: >
-      # Light Flashing Action
-      - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ target_light is defined or true }}"
-            sequence:
-              - repeat:
-                  count: !input light_flash_count
-                  sequence:
-                    - action: light.toggle
-                      target: !input target_light
-                    - delay: !input light_flash_duration
+action:
+  - if:
+      - condition: template
+        value_template: "{{ target_light_var is defined and target_light_var != none and target_light_var != {} and target_light_var != [] }}"
+    then:
+      - repeat:
+          count: !input light_flash_count
+          sequence:
+            - action: light.toggle
+              target: !input target_light
+            - delay: !input light_flash_duration
+    vars:
+      target_light_var: !input target_light
 
-      # TTS Action
-      - choose:
-          - conditions:
-              - condition: template
-                value_template: "{{ tts_enabled }}"
-            sequence:
-              - action: tts.google_translate_say
-                target:
-                  entity_id: !input tts_target_speaker
-                data:
-                  message: !input tts_message
+  - if:
+      - condition: template
+        value_template: "{{ tts_enabled_var and tts_speaker_var != none and tts_speaker_var != [] and tts_speaker_var != '' }}"
+    then:
+      - action: tts.google_translate_say
+        target:
+          entity_id: !input tts_target_speaker
+        data:
+          message: !input tts_message
+    vars:
+      tts_enabled_var: !input tts_enabled
+      tts_speaker_var: !input tts_target_speaker
