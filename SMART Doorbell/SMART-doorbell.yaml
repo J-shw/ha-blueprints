@@ -80,8 +80,8 @@ blueprint:
           description: The device to send the notification to. (e.g., mobile device, tablet, etc.)
           default: []
           selector:
-            entity:
-              domain: mobile_app
+            device:
+              integration: mobile_app
         notify_target:
           name: General Notification Target
           description: The target to send the notification to. (e.g., Alexa, notify group, etc.)
@@ -100,6 +100,7 @@ blueprint:
         target_light:
           name: Lights
           description: The lights to flash when the doorbell is triggered.
+          default: []
           selector:
             target:
               entity:
@@ -282,10 +283,11 @@ action:
       - condition: template
         value_template: "{{ tts_enabled }}"
     then:
-      - action: tts.google_translate_say
+      - action: tts.speak
         target:
           entity_id: !input tts_target_speaker
         data:
+          media_player_entity_id: !input tts_target_speaker
           message: !input tts_message
   
   - if:
@@ -293,7 +295,8 @@ action:
         value_template: "{{ notify_enabled and (notify_target != {} or notify_target != []) }}"
     then:
       - action: notify.send_message
-        target: !input notify_target
+        target:
+          entity_id: !input notify_target
         data:
           title: !input notify_title
           message: !input notify_message
@@ -302,15 +305,14 @@ action:
       - condition: template
         value_template: "{{ notify_enabled and (notify_mobile_device != {} or notify_mobile_device != []) }}"
     then:
-      - action: notify.send_message
-        target: !input notify_mobile_device
-        data:
-          title: !input notify_title
-          message: !input notify_message
-          data:
-            image: >
-              {% if notify_with_doorbell_image and (doorbell_image_entity != {} or doorbell_image_entity != []) %}
-                {{ state_attr(doorbell_image_entity, 'entity_picture') }}
-              {% else %}
-                null
-              {% endif %}
+      - device_id: !input notify_mobile_device
+        domain: mobile_app
+        type: notify
+        title: !input notify_title
+        message: !input notify_message
+        data: >-
+          {% if notify_with_doorbell_image and (doorbell_image_entity != {} or doorbell_image_entity != []) %}
+            {{ {'image': state_attr(doorbell_image_entity, 'entity_picture')} }}
+          {% else %}
+            {{ {} }}
+          {% endif %}
