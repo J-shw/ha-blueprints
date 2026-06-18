@@ -1,13 +1,23 @@
 blueprint:
   name: SMART Doorbell
   description: >
-   The SMART doorbell blueprint. 
-   
-   Flash a light, send TTS to speakers or send phone notifications all when the doorbell is pressed.
+    <h3><b>The SMART Doorbell</b></h3>
 
-   Please define either a doorbell event or a binary sensor that detects when the doorbell is pressed.
+    <p>Most "smart" doorbells aren't actually that smart—they just ping your phone and call it a day. This blueprint changes that.</p>
+
+    <p><b>Choose exactly what happens when the button is pressed:</b></p>
+    <ul>
+      <li><b>Visual Alerts:</b> Great for accessibility needs (Or if you like listening to music with your headphones on!)</li>
+      <li><b>Voice Announcements:</b> Broadcast custom Text-to-Speech (TTS) alerts across your smart speakers.</li>
+      <li><b>Mobile Notifications:</b> Send notifications to your phone, and include an image from the doorbell camera.</li>
+    </ul>
+
+    <hr>
+
+    <p><small><i><b>Setup Note:</b> To get started, just link your doorbell's trigger binary sensor below.</i></small></p>
+
   domain: automation
-  author: "https://github.com/J-shw"
+  author: "https://github.com/J-shw/ha-blueprints"
   homeassistant:
     min_version: 2024.6.0
   input:
@@ -104,9 +114,18 @@ blueprint:
               min: 2
               max: 10
               step: 2
-        light_flash_duration_seconds:
-          name: Light Flash Duration
-          description: The duration of each light flash in seconds.
+        light_flash_on_duration_seconds:
+          name: Light Flash On Duration
+          description: The duration of the on period between light flash in seconds.
+          default: 0.5
+          selector:
+            number:
+              min: 0.1
+              max: 5
+              step: 0.1
+        light_flash_off_duration_seconds:
+          name: Light Flash Off Duration
+          description: The duration of the off period between light flashes in seconds.
           default: 0.5
           selector:
             number:
@@ -114,6 +133,51 @@ blueprint:
               max: 5
               step: 0.1
     
+    media_player_settings:
+      name: Media Player Settings
+      icon: mdi:speaker-outline
+      description: Select the media players to pause or reduce volume when the doorbell is triggered.
+      collapsed: true
+      input:
+        target_media_player_pause:
+          name: Media Players (Pause)
+          description: The media players to pause when the doorbell is triggered.
+          default: {}
+          selector:
+            target:
+              entity:
+                - domain: media_player
+        
+        target_media_player_volume:
+          name: Media Players (Volume)
+          description: The media players to reduce volume when the doorbell is triggered.
+          default: {}
+          selector:
+            target:
+              entity:
+                - domain: media_player
+        
+        percentage_volume_reduction_steps:
+          name: Volume Reduction Steps
+          description: The number of steps to reduce the volume of the media players when the doorbell is triggered. (A step might be 1 or more depending on speakers.. Please start small and test!)
+          default: 5
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 5
+        
+        duration_volume_reduction_seconds:
+          name: Duration of Volume Reduction
+          description: The duration in seconds to keep the volume reduced before restoring it.
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+    
+
     tts_settings:
       name: TTS Settings
       icon: mdi:account-voice
@@ -216,8 +280,14 @@ variables:
   day_of_week: !input day_of_week
 
   light_flash_count: !input light_flash_count
-  light_flash_duration_seconds: !input light_flash_duration_seconds
+  light_flash_on_duration_seconds: !input light_flash_on_duration_seconds
+  light_flash_off_duration_seconds: !input light_flash_off_duration_seconds
   target_light: !input target_light
+
+  target_media_player_pause: !input target_media_player_pause
+  target_media_player_volume: !input target_media_player_volume
+  percentage_volume_reduction_steps: !input percentage_volume_reduction_steps
+  duration_volume_reduction_seconds: !input duration_volume_reduction_seconds
 
   tts_enabled: !input tts_enabled
   tts_message: !input tts_message
@@ -256,16 +326,77 @@ conditions:
 action:
   - if:
       - condition: template
-        value_template: "{{ target_light != {} }}"
+        value_template: "{{ target_light != {} and target_light.entity_id is defined }}"
     then:
+      - action: scene.create
+        data:
+          scene_id: doorbell_lights_snapshot
+          snapshot_entities: >
+            {% if target_light.entity_id is string %}
+              {{ [target_light.entity_id] }}
+            {% else %}
+              {{ target_light.entity_id }}
+            {% endif %}
+
+      - action: light.turn_off
+        target: !input target_light
       - repeat:
           count: !input light_flash_count
           sequence:
-            - action: light.toggle
+            - action: light.turn_on
               target: !input target_light
             - delay:
-                seconds: !input light_flash_duration_seconds
+                seconds: !input light_flash_on_duration_seconds
+            - action: light.turn_off
+              target: !input target_light
+            - delay:
+                seconds: !input light_flash_off_duration_seconds
 
+      - action: scene.turn_on
+        target:
+          entity_id: scene.doorbell_lights_snapshot
+
+  - if:
+      - condition: template
+        value_template: "{{ target_media_player_pause != {} }}"
+    then:
+      - action: media_player.media_pause
+        target: !input target_media_player_pause
+
+  - if:
+      - condition: template
+        value_template: "{{ target_media_player_volume != {} and target_media_player_volume.entity_id is defined }}"
+    then:
+      - repeat:
+          for_each: >
+            {% if target_media_player_volume.entity_id is string %}
+              {{ [target_media_player_volume.entity_id] }}
+            {% else %}
+              {{ target_media_player_volume.entity_id }}
+            {% endif %}
+          sequence:
+            - variables:
+                repeat_item: "{{ repeat.item }}"
+            - if:
+                - condition: template
+                  value_template: "{{ states(repeat_item) in ['on', 'playing'] and state_attr(repeat_item, 'volume_level') | float(0) > 0 }}"
+              then:
+                - repeat:
+                    count: !input percentage_volume_reduction_steps
+                    sequence:
+                      - action: media_player.volume_down
+                        target:
+                          entity_id: "{{ repeat_item }}"
+                    
+                - delay:
+                    seconds: !input duration_volume_reduction_seconds
+                        
+                - repeat:
+                    count: !input percentage_volume_reduction_steps
+                    sequence:
+                      - action: media_player.volume_up
+                        target:
+                          entity_id: "{{ repeat_item }}"
   - if:
       - condition: template
         value_template: "{{ tts_enabled }}"
