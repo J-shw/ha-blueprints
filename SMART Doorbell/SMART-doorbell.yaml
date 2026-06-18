@@ -25,7 +25,6 @@ blueprint:
       name: "Trigger Settings *"
       icon: mdi:bell-ring-outline
       description: Select the trigger settings for the doorbell automation.
-      collapsed: true
       input:
 
         doorbell_binary_sensor:
@@ -77,19 +76,12 @@ blueprint:
             text:
         
         notify_mobile_device:
-          name: Mobile Device Notification Target
-          description: The device to send the notification to. (e.g., mobile device, tablet, etc.)
+          name: Notification Target (Mobile Device)
+          description: The mobile device to send the notification to.
           default: {}
           selector:
             device:
               integration: mobile_app
-        notify_target:
-          name: General Notification Target
-          description: The target to send the notification to. (e.g., Alexa, notify group, etc.)
-          default: {}
-          selector:
-            entity:
-              domain: notify
 
     light_settings:
       name: Lights
@@ -135,7 +127,7 @@ blueprint:
     
     media_player_settings:
       name: Media Player Settings
-      icon: mdi:speaker-outline
+      icon: mdi:speaker-multiple
       description: Select the media players to pause or reduce volume when the doorbell is triggered.
       collapsed: true
       input:
@@ -177,7 +169,6 @@ blueprint:
               max: 60
               step: 1
     
-
     tts_settings:
       name: TTS Settings
       icon: mdi:account-voice
@@ -190,6 +181,13 @@ blueprint:
           default: false
           selector:
             boolean:
+        tts_engine:
+          name: TTS Engine
+          description: The TTS engine to use for generating speech.
+          default: {}
+          selector:
+            entity:
+              domain: tts
         tts_message:
           name: TTS Message
           description: The message to be spoken when the doorbell is triggered.
@@ -205,7 +203,7 @@ blueprint:
               domain: media_player
 
     time_settings:
-      name: "Time Settings *"
+      name: "Time Settings"
       icon: mdi:clock-outline
       description: Select the time-related settings for when the automation should run.
       collapsed: true
@@ -256,7 +254,7 @@ blueprint:
                   label: Sunday
   
     presence_settings:
-      name: "Presence Settings *"
+      name: "Presence Settings"
       icon: mdi:account-check-outline
       description: Configure presence detection settings for the doorbell automation. 
       collapsed: true
@@ -266,8 +264,9 @@ blueprint:
           description: Select the people to check for presence before triggering the automation.
           default: {}
           selector:
-            entity:
-              domain: person
+            target:
+              entity:
+                - domain: person
 
 variables:
   doorbell_binary_sensor: !input doorbell_binary_sensor
@@ -290,6 +289,7 @@ variables:
   duration_volume_reduction_seconds: !input duration_volume_reduction_seconds
 
   tts_enabled: !input tts_enabled
+  tts_engine: !input tts_engine
   tts_message: !input tts_message
   tts_target_speaker: !input tts_target_speaker
 
@@ -297,7 +297,6 @@ variables:
   notify_with_doorbell_image: !input notify_with_doorbell_image
   notify_title: !input notify_title
   notify_message: !input notify_message
-  notify_target: !input notify_target
   notify_mobile_device: !input notify_mobile_device
 
 
@@ -324,113 +323,118 @@ conditions:
       {% endif %}
       
 action:
-  - if:
-      - condition: template
-        value_template: "{{ target_light != {} and target_light.entity_id is defined }}"
-    then:
-      - action: scene.create
-        data:
-          scene_id: doorbell_lights_snapshot
-          snapshot_entities: >
-            {% if target_light.entity_id is string %}
-              {{ [target_light.entity_id] }}
-            {% else %}
-              {{ target_light.entity_id }}
-            {% endif %}
-
-      - action: light.turn_off
-        target: !input target_light
-      - repeat:
-          count: !input light_flash_count
-          sequence:
-            - action: light.turn_on
-              target: !input target_light
-            - delay:
-                seconds: !input light_flash_on_duration_seconds
-            - action: light.turn_off
-              target: !input target_light
-            - delay:
-                seconds: !input light_flash_off_duration_seconds
-
-      - action: scene.turn_on
-        target:
-          entity_id: scene.doorbell_lights_snapshot
-
-  - if:
-      - condition: template
-        value_template: "{{ target_media_player_pause != {} }}"
-    then:
-      - action: media_player.media_pause
-        target: !input target_media_player_pause
-
-  - if:
-      - condition: template
-        value_template: "{{ target_media_player_volume != {} and target_media_player_volume.entity_id is defined }}"
-    then:
-      - repeat:
-          for_each: >
-            {% if target_media_player_volume.entity_id is string %}
-              {{ [target_media_player_volume.entity_id] }}
-            {% else %}
-              {{ target_media_player_volume.entity_id }}
-            {% endif %}
-          sequence:
-            - variables:
-                repeat_item: "{{ repeat.item }}"
-            - if:
-                - condition: template
-                  value_template: "{{ states(repeat_item) in ['on', 'playing'] and state_attr(repeat_item, 'volume_level') | float(0) > 0 }}"
-              then:
-                - repeat:
-                    count: !input percentage_volume_reduction_steps
-                    sequence:
-                      - action: media_player.volume_down
-                        target:
-                          entity_id: "{{ repeat_item }}"
-                    
-                - delay:
-                    seconds: !input duration_volume_reduction_seconds
-                        
-                - repeat:
-                    count: !input percentage_volume_reduction_steps
-                    sequence:
-                      - action: media_player.volume_up
-                        target:
-                          entity_id: "{{ repeat_item }}"
-  - if:
-      - condition: template
-        value_template: "{{ tts_enabled }}"
-    then:
-      - action: tts.speak
-        target:
-          entity_id: !input tts_target_speaker
-        data:
-          media_player_entity_id: !input tts_target_speaker
-          message: !input tts_message
-  
-  - if:
-      - condition: template
-        value_template: "{{ notify_enabled and notify_target != {} }}"
-    then:
-      - action: notify.send_message
-        target:
-          entity_id: !input notify_target
-        data:
-          title: !input notify_title
-          message: !input notify_message
-  
-  - if:
+  - parallel:
+    - if:
       - condition: template
         value_template: "{{ notify_enabled and notify_mobile_device != {} }}"
-    then:
-      - device_id: !input notify_mobile_device
-        domain: mobile_app
-        type: notify
-        title: !input notify_title
-        message: !input notify_message
-        data: >-
-          {% if notify_with_doorbell_image and doorbell_image_entity != {} %}
-            {{ {'image': state_attr(doorbell_image_entity, 'entity_picture')} }}
-          {% else %}
-            {{ {} }}
-          {% endif %}
+      then:
+        - device_id: !input notify_mobile_device
+          domain: mobile_app
+          type: notify
+          title: !input notify_title
+          message: !input notify_message
+          data: >-
+            {% if notify_with_doorbell_image and doorbell_image_entity != {} %}
+              {{ {'image': state_attr(doorbell_image_entity, 'entity_picture')} }}
+            {% else %}
+              {{ {} }}
+            {% endif %}
+
+    - if:
+      - condition: template
+        value_template: "{{ target_light != {} and target_light.entity_id is defined }}"
+      then:
+        - variables:
+            light_entities: >
+              {% if target_light.entity_id is string %}
+                {{ [target_light.entity_id] }}
+              {% else %}
+                {{ target_light.entity_id }}
+              {% endif %}
+            initial_states: >
+              {% set ns = namespace(states=[]) %}
+              {% for light in light_entities %}
+                {% set ns.states = ns.states + [{'entity_id': light, 'state': states(light)}] %}
+              {% endfor %}
+              {{ ns.states }}
+
+        - action: light.turn_off
+          target: !input target_light
+        - repeat:
+            count: !input light_flash_count
+            sequence:
+              - action: light.turn_on
+                target: !input target_light
+              - delay:
+                  seconds: !input light_flash_on_duration_seconds
+              - action: light.turn_off
+                target: !input target_light
+              - delay:
+                  seconds: !input light_flash_off_duration_seconds
+
+        - repeat:
+            for_each: "{{ initial_states }}"
+            sequence:
+              - if:
+                  - condition: template
+                    value_template: "{{ repeat.item.state == 'on' }}"
+                then:
+                  - action: light.turn_on
+                    target:
+                      entity_id: "{{ repeat.item.entity_id }}"
+                else:
+                  - action: light.turn_off
+                    target:
+                      entity_id: "{{ repeat.item.entity_id }}"
+
+    - if:
+        - condition: template
+          value_template: "{{ target_media_player_pause != {} }}"
+      then:
+        - action: media_player.media_pause
+          target: !input target_media_player_pause
+
+    - if:
+        - condition: template
+          value_template: "{{ target_media_player_volume != {} and target_media_player_volume.entity_id is defined }}"
+      then:
+        - repeat:
+            for_each: >
+              {% if target_media_player_volume.entity_id is string %}
+                {{ [target_media_player_volume.entity_id] }}
+              {% else %}
+                {{ target_media_player_volume.entity_id }}
+              {% endif %}
+            sequence:
+              - variables:
+                  repeat_item: "{{ repeat.item }}"
+              - if:
+                  - condition: template
+                    value_template: "{{ states(repeat_item) in ['on', 'playing'] and state_attr(repeat_item, 'volume_level') | float(0) > 0 }}"
+                then:
+                  - repeat:
+                      count: !input percentage_volume_reduction_steps
+                      sequence:
+                        - action: media_player.volume_down
+                          target:
+                            entity_id: "{{ repeat_item }}"
+                      
+                  - delay:
+                      seconds: !input duration_volume_reduction_seconds
+                          
+                  - repeat:
+                      count: !input percentage_volume_reduction_steps
+                      sequence:
+                        - action: media_player.volume_up
+                          target:
+                            entity_id: "{{ repeat_item }}"
+    - if:
+        - condition: template
+          value_template: "{{ tts_enabled and tts_engine != {} and tts_target_speaker != {} }}"
+      then:
+        - action: tts.speak
+          target:
+            entity_id: !input tts_engine
+          data:
+            media_player_entity_id: !input tts_target_speaker
+            message: !input tts_message
