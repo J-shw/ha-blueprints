@@ -1,21 +1,23 @@
 blueprint:
   name: SMART Doorbell
   description: >
-    <h3><b>The SMART Doorbell</b></h3>
+    <h3><b>🔔 The Ultimate SMART Doorbell Controller</b></h3>
+    <h4>Version: 1.0</h4>
 
-    <p>Most "smart" doorbells aren't actually that smart—they just ping your phone and call it a day. This blueprint changes that.</p>
+    <p>Most "smart" doorbells aren't actually that smart.. They just ping your phone and call it a day. This blueprint turns your basic doorbell press into an event based on your rules, your schedule, and who is actually home.</p>
 
-    <p><b>Choose exactly what happens when the button is pressed:</b></p>
+    <h4><b>🛠️ What This Blueprint Can Do:</b></h4>
     <ul>
-      <li><b>Visual Alerts:</b> Great for accessibility needs (Or if you like listening to music with your headphones on!)</li>
-      <li><b>Voice Announcements:</b> Broadcast custom Text-to-Speech (TTS) alerts across your smart speakers.</li>
-      <li><b>Mobile Notifications:</b> Send notifications to your phone, and include an image from the doorbell camera.</li>
+      <li><b>📱 Rich Mobile Alerts:</b> Send instant notifications to your phone, complete with live snapshot images from your doorbell camera.</li>
+      <li><b>🔊 Intelligent Audio Control:</b> Automatically pause your music/movies or temporarily duck the volume on your media players so you never miss a knock.</li>
+      <li><b>🗣️ Voice Announcements:</b> Broadcast custom Text-to-Speech (TTS) messages across your smart speakers (e.g., <i>"Someone is at the front door"</i>).</li>
+      <li><b>💡 Visual Notifications:</b> Flash your living room, office, or patio lights. Perfect for accessibility, late-night gaming with headphones, or keeping the house quiet.</li>
+      <li><b>⏰ Time & Day Filters:</b> Restrict alerts to specific hours or days (e.g., disable speaker announcements late at night).</li>
+      <li><b>👥 Presence Awareness:</b> Only trigger actions if designated people are actually home.</li>
     </ul>
 
     <hr>
-
-    <p><small><i><b>Setup Note:</b> To get started, just link your doorbell's trigger binary sensor below.</i></small></p>
-
+    <p><small><i><b>🚀 Quick Start:</b> Link your doorbell's <b>Trigger Binary Sensor</b> below, collapse the menus you don't need, and customise your ultimate notification setup!</i></small></p>
   domain: automation
   author: "https://github.com/J-shw/ha-blueprints"
   homeassistant:
@@ -315,11 +317,14 @@ conditions:
   
   - condition: template
     value_template: >
-      {% set people = [entities] if entities is string else entities %}
-      {% if people == none or people == [] or people == [''] %}
+      {% set target = people_to_check %}
+      {% set entity_ids = target.get('entity_id', []) if target is mapping else target %}
+      {% set entity_ids = [entity_ids] if entity_ids is string else entity_ids %}
+      
+      {% if entity_ids == none or entity_ids == [] or entity_ids == [''] %}
         true
       {% else %}
-        {{ states.person | selectattr('entity_id', 'in', people) | selectattr('state', 'eq', 'home') | list | length > 0 }}
+        {{ states.person | selectattr('entity_id', 'in', entity_ids) | selectattr('state', 'eq', 'home') | list | length > 0 }}
       {% endif %}
       
 action:
