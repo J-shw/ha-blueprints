@@ -80,10 +80,12 @@ blueprint:
         notify_mobile_device:
           name: Notification Target (Mobile Device)
           description: The mobile device to send the notification to.
-          default: {}
+          default: []
           selector:
             device:
-              integration: mobile_app
+              filter:
+                - integration: mobile_app
+              multiple: true
 
     light_settings:
       name: Lights
@@ -331,19 +333,23 @@ action:
   - parallel:
     - if:
       - condition: template
-        value_template: "{{ notify_enabled and notify_mobile_device != {} }}"
+        value_template: "{{ notify_enabled and notify_mobile_device | length > 0 }}"
       then:
-        - device_id: !input notify_mobile_device
-          domain: mobile_app
-          type: notify
-          title: !input notify_title
-          message: !input notify_message
-          data: >-
-            {% if notify_with_doorbell_image and doorbell_image_entity != {} %}
-              {{ {'image': state_attr(doorbell_image_entity, 'entity_picture')} }}
-            {% else %}
-              {{ {} }}
-            {% endif %}
+        sequence:
+            - alias: "Send a notification to each device"
+              repeat:
+                for_each: !input notify_mobile_device
+                sequence:
+                  - action: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+                    data:
+                      title: !input notify_title
+                      message: !input notify_message
+                      data: >-
+                        {% if notify_with_doorbell_image and doorbell_image_entity != {} %}
+                          {{ {'image': state_attr(doorbell_image_entity, 'entity_picture')} }}
+                        {% else %}
+                          {{ {} }}
+                        {% endif %}
 
     - if:
       - condition: template
