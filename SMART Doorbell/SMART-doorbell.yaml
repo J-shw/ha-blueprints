@@ -40,7 +40,7 @@ blueprint:
         doorbell_image_entity:
           name: Doorbell Image Entity (Optional)
           description: The camera entity that provides an image of the doorbell when triggered.
-          default: {}
+          default:
           selector:
             entity:
               filter:
@@ -77,21 +77,52 @@ blueprint:
           selector:
             text:
         
+        notify_click_action:
+          name: Notification Click Action
+          description: The dashboard to navigate to when the notification is clicked.
+          default: '/overview'
+          selector:
+            text:
+
         notify_mobile_device:
           name: Notification Target 1 (Mobile Device)
           description: The mobile device to send the notification to.
-          default: {}
+          default:
           selector:
             device:
               integration: mobile_app
+        
+        notify_mobile_device_type:
+          name: Notification Target 1 Device Type
+          description: Select the mobile device type to send the notification to.
+          default: android
+          selector:
+            select:
+              options:
+                - label: Android
+                  value: "android"
+                - label: iOS
+                  value: "ios"
 
         notify_mobile_device_2:
           name: Notification Target 2 (Mobile Device)
           description: The mobile device to send the notification to.
-          default: {}
+          default:
           selector:
             device:
               integration: mobile_app
+        
+        notify_mobile_device_2_type:
+          name: Notification Target 2 Device Type
+          description: Select the mobile device type to send the notification to.
+          default: android
+          selector:
+            select:
+              options:
+                - label: Android
+                  value: "android"
+                - label: iOS
+                  value: "ios"
 
     light_settings:
       name: Lights
@@ -307,8 +338,11 @@ variables:
   notify_with_doorbell_image: !input notify_with_doorbell_image
   notify_title: !input notify_title
   notify_message: !input notify_message
-  notify_mobile_device_1: !input notify_mobile_device
+  notify_click_action: !input notify_click_action
+  notify_mobile_device: !input notify_mobile_device
+  notify_mobile_device_type: !input notify_mobile_device_type
   notify_mobile_device_2: !input notify_mobile_device_2
+  notify_mobile_device_2_type: !input notify_mobile_device_2_type
 
   snapshot_create_file_path: /config/www/tmp/snapshot_{{ states[doorbell_image_entity].object_id }}.jpg
 
@@ -339,46 +373,66 @@ conditions:
       {% endif %}
       
 action:
-  # - service: camera.snapshot
-  #   entity_id: !input doorbell_image_entity
-  #   data:
-  #     filename: "{{ snapshot_create_file_path }}"
+  - if:
+      - condition: template
+        value_template: "{{ notify_with_doorbell_image and doorbell_image_entity != None }}"
+    then:
+      - service: camera.snapshot
+        entity_id: !input doorbell_image_entity
+        data:
+          filename: "{{ snapshot_create_file_path }}"
   - parallel:
     - if:
-      - condition: template
-        value_template: "{{ notify_enabled and notify_mobile_device != {} }}"
+        - condition: template
+          value_template: "{{ notify_enabled and notify_mobile_device != None }}"
       then:
         - device_id: !input notify_mobile_device
           domain: mobile_app
           type: notify
           title: !input notify_title
           message: !input notify_message
-          data: >-
+          data: >
+            {% set base_data = {"clickAction": notify_click_action} %}
             {% if notify_with_doorbell_image and doorbell_image_entity != {} %}
-              {{ {'image': state_attr(doorbell_image_entity, 'entity_picture')} }}
+              {% if notify_mobile_device_type == 'android' %}
+                {% set android_data = dict(base_data, image=snapshot_access_file_path) %}
+                {{ android_data }}
+              {% else %}
+                {% set ios_attachment = {"attachment": {"url": snapshot_access_file_path, "content-type": "jpeg"}} %}
+                {% set ios_data = dict(base_data, **ios_attachment) %}
+                {{ ios_data }}
+              {% endif %}
             {% else %}
-              {{ {} }}
+              {{ base_data }}
             {% endif %}
     
     - if:
-      - condition: template
-        value_template: "{{ notify_enabled and notify_mobile_device_2 != {} }}"
+        - condition: template
+          value_template: "{{ notify_enabled and notify_mobile_device_2 != None }}"
       then:
         - device_id: !input notify_mobile_device_2
           domain: mobile_app
           type: notify
           title: !input notify_title
           message: !input notify_message
-          data: >-
+          data: >
+            {% set base_data = {"clickAction": notify_click_action} %}
             {% if notify_with_doorbell_image and doorbell_image_entity != {} %}
-              {{ {'image': state_attr(doorbell_image_entity, 'entity_picture')} }}
+              {% if notify_mobile_device_type == 'android' %}
+                {% set android_data = dict(base_data, image=snapshot_access_file_path) %}
+                {{ android_data }}
+              {% else %}
+                {% set ios_attachment = {"attachment": {"url": snapshot_access_file_path, "content-type": "jpeg"}} %}
+                {% set ios_data = dict(base_data, **ios_attachment) %}
+                {{ ios_data }}
+              {% endif %}
             {% else %}
-              {{ {} }}
+              {{ base_data }}
             {% endif %}
 
     - if:
-      - condition: template
-        value_template: "{{ target_light != {} and target_light.entity_id is defined }}"
+        - condition: template
+          value_template: "{{ target_light != {} and target_light.entity_id is defined }}"
       then:
         - variables:
             light_entities: >
@@ -464,6 +518,7 @@ action:
                         - action: media_player.volume_up
                           target:
                             entity_id: "{{ repeat_item }}"
+    
     - if:
         - condition: template
           value_template: "{{ tts_enabled and tts_engine != {} and tts_target_speaker != {} }}"
