@@ -80,7 +80,7 @@ blueprint:
         notify_click_action:
           name: Notification Click Action
           description: The dashboard to navigate to when the notification is clicked.
-          default: '/overview'
+          default: '/'
           selector:
             text:
 
@@ -345,6 +345,7 @@ variables:
   notify_mobile_device_2_type: !input notify_mobile_device_2_type
 
   snapshot_create_file_path: /config/www/tmp/snapshot_{{ states[doorbell_image_entity].object_id }}.jpg
+  snapshot_access_file_path: '{{ snapshot_create_file_path | replace(''/config/www'',''/local'')}}'
 
 
 triggers:
@@ -386,49 +387,40 @@ action:
         - condition: template
           value_template: "{{ notify_enabled and notify_mobile_device != None }}"
       then:
-        - device_id: !input notify_mobile_device
-          domain: mobile_app
-          type: notify
-          title: !input notify_title
-          message: !input notify_message
-          data: >
-            {% set base_data = {"clickAction": notify_click_action} %}
-            {% if notify_with_doorbell_image and doorbell_image_entity != {} %}
-              {% if notify_mobile_device_type == 'android' %}
-                {% set android_data = dict(base_data, image=snapshot_access_file_path) %}
-                {{ android_data }}
+        - service: notify.mobile_app_{{ device_attr(notify_mobile_device, 'name') | slugify }}
+          data:
+            title: !input notify_title
+            message: !input notify_message
+            data: >
+              {% if notify_with_doorbell_image and doorbell_image_entity != None %}
+                {% if notify_mobile_device_type == 'android' %}
+                  {"clickAction": "{{ notify_click_action }}", "image": "{{ snapshot_access_file_path }}"}
+                {% else %}
+                  {"clickAction": "{{ notify_click_action }}", "attachment": {"url": "{{ snapshot_access_file_path }}", "content-type": "jpeg"}}
+                {% endif %}
               {% else %}
-                {% set ios_attachment = {"attachment": {"url": snapshot_access_file_path, "content-type": "jpeg"}} %}
-                {% set ios_data = dict(base_data, **ios_attachment) %}
-                {{ ios_data }}
+                {"clickAction": "{{ notify_click_action }}" }
               {% endif %}
-            {% else %}
-              {{ base_data }}
-            {% endif %}
     
     - if:
         - condition: template
           value_template: "{{ notify_enabled and notify_mobile_device_2 != None }}"
       then:
-        - device_id: !input notify_mobile_device_2
-          domain: mobile_app
-          type: notify
-          title: !input notify_title
-          message: !input notify_message
-          data: >
-            {% set base_data = {"clickAction": notify_click_action} %}
-            {% if notify_with_doorbell_image and doorbell_image_entity != {} %}
-              {% if notify_mobile_device_type == 'android' %}
-                {% set android_data = dict(base_data, image=snapshot_access_file_path) %}
-                {{ android_data }}
+        - service: notify.mobile_app_{{ device_attr(notify_mobile_device_2, 'name') | slugify }}
+          data:
+            entity_id: !input notify_mobile_device
+            title: !input notify_title
+            message: !input notify_message
+            data: >
+              {% if notify_with_doorbell_image and doorbell_image_entity != None %}
+                {% if notify_mobile_device_2_type == 'android' %}
+                  {"clickAction": "{{ notify_click_action }}", "image": "{{ snapshot_access_file_path }}"}
+                {% else %}
+                  {"clickAction": "{{ notify_click_action }}", "attachment": {"url": "{{ snapshot_access_file_path }}", "content-type": "jpeg"}}
+                {% endif %}
               {% else %}
-                {% set ios_attachment = {"attachment": {"url": snapshot_access_file_path, "content-type": "jpeg"}} %}
-                {% set ios_data = dict(base_data, **ios_attachment) %}
-                {{ ios_data }}
+                {"clickAction": "{{ notify_click_action }}" }
               {% endif %}
-            {% else %}
-              {{ base_data }}
-            {% endif %}
 
     - if:
         - condition: template
