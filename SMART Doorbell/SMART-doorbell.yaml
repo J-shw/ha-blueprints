@@ -471,10 +471,24 @@ action:
 
     - if:
         - condition: template
-          value_template: "{{ target_media_player_pause != {} }}"
+          value_template: "{{ target_media_player_pause != {} and target_media_player_pause != [] }}"
       then:
-        - action: media_player.media_pause
-          target: !input target_media_player_pause
+        - repeat:
+          for_each: >
+            {% if target_media_player_pause.entity_id is string %}
+              {{ [target_media_player_pause.entity_id] }}
+            {% else %}
+              {{ target_media_player_pause.entity_id }}
+            {% endif %}
+          sequence:
+            - variables:
+                repeat_item: "{{ repeat.item }}"
+            - if:
+              - conditioin: template
+                value_template: "{{ states(repeat_item) in ['playing'] }}"
+              then:
+                - action: media_player.media_pause
+                  target: !input repeat_item
 
     - if:
         - condition: template
