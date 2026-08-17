@@ -1,0 +1,190 @@
+blueprint:
+  name: Smart Auto Lights with Night Mode
+  description: Automatically turns on lights based on motion, time, solar position, and presence. Features an occupancy timeout and a dedicated late-night action.
+  domain: automation
+  input:
+    # Entities
+    motion_sensor:
+      name: Motion Sensor
+      description: Sensor used to trigger lights on.
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+              device_class: motion
+            - domain: binary_sensor
+              device_class: occupancy
+
+    occupancy_sensor:
+      name: Occupancy Sensor
+      description: Sensor used for falling-edge turning off lights (can be the same as motion sensor).
+      selector:
+        entity:
+          filter:
+            - domain: binary_sensor
+              device_class: motion
+            - domain: binary_sensor
+              device_class: occupancy
+
+    target_lights:
+      name: Target Lights
+      description: The light entity or group to control.
+      selector:
+        target:
+          entity:
+            - domain: light
+
+    # Conditions & Presence
+    presence_person:
+      name: Presence Entity
+      description: Person or zone entity to check if anyone is home (prevents robot vacuums/pets from triggering).
+      default: zone.home
+      selector:
+        entity:
+          filter:
+            - domain: person
+            - domain: zone
+            - domain: binary_sensor
+
+    off_timeout:
+      name: Turn Off Timeout
+      description: Time to wait after occupancy clears before turning off lights.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 60
+          unit_of_measurement: minutes
+          step: 1
+
+    # Time / Sun Conditions
+    enable_time_condition:
+      name: Enable Start Time Constraint
+      default: false
+      selector:
+        boolean: {}
+
+    start_time:
+      name: Start Time
+      description: Lights will only turn on after this time (e.g., 22:00:00).
+      default: "22:00:00"
+      selector:
+        time: {}
+
+    enable_sun_condition:
+      name: Enable Day/Night Constraint
+      default: true
+      selector:
+        boolean: {}
+
+    sun_elevation:
+      name: Sun Elevation Threshold
+      description: Turn on lights only when sun is below this angle (0 = horizon, negative = night).
+      default: 0
+      selector:
+        number:
+          min: -20
+          max: 20
+          unit_of_measurement: degrees
+          step: 1
+
+    # Night Light Settings
+    night_time:
+      name: Night Light Cutoff Time
+      description: If triggered after this time (e.g., 01:00:00), the Night Light action runs instead.
+      default: "01:00:00"
+      selector:
+        time: {}
+
+    # Light Actions
+    standard_light_action:
+      name: Standard Light On Action
+      description: Action to turn on lights normally.
+      default:
+        - action: light.turn_on
+          target:
+            entity_id: !input target_lights
+          data:
+            brightness_pct: 100
+      selector:
+        action: {}
+
+    night_light_action:
+      name: Night Light Action
+      description: Action to turn on lights during late night hours.
+      default:
+        - action: light.turn_on
+          target:
+            entity_id: !input target_lights
+          data:
+            brightness_pct: 10
+      selector:
+        action: {}
+
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: state
+    entity_id: !input motion_sensor
+    to: "on"
+    id: motion_on
+  - platform: state
+    entity_id: !input occupancy_sensor
+    from: "on"
+    to: "off"
+    for:
+      minutes: !input off_timeout
+    id: occupancy_off
+
+condition: []
+
+action:
+  - choose:
+      # --- TRIGGER: Motion Detected ---
+      - conditions:
+          - condition: trigger
+            id: motion_on
+          # Condition 1: Presence (Home check)
+          - condition: template
+            value_template: >-
+              {% set presence = presence_person %}
+              {% if states(presence) in ['home', 'on'] or (is_state_attr(presence, 'persons', true) and states(presence)|int(0) > 0) %}
+                true
+              {% else %}
+                false
+              {% endif %}
+          # Condition 2: Time condition (if enabled)
+          - condition: or
+            conditions:
+              - condition: template
+                value_template: "{{ not enable_time_condition }}"
+              - condition: time
+                after: !input start_time
+          # Condition 3: Sun condition (if enabled)
+          - condition: or
+            conditions:
+              - condition: template
+                value_template: "{{ not enable_sun_condition }}"
+              - condition: numeric_state
+                entity_id: sun.sun
+                attribute: elevation
+                below: !input sun_elevation
+        sequence:
+          - choose:
+              # Night Light path (between night_time and 05:00 AM)
+              - conditions:
+                  - condition: time
+                    after: !input night_time
+                    before: "05:00:00"
+                sequence: !input night_light_action
+            # Standard Light path
+            default: !input standard_light_action
+
+      # --- TRIGGER: Occupancy Off (Falling Edge + Timeout) ---
+      - conditions:
+          - condition: trigger
+            id: occupancy_off
+        sequence:
+          - action: light.turn_off
+            target: !input target_lights
