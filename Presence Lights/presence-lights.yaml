@@ -34,6 +34,17 @@ blueprint:
               device_class: motion
             - domain: binary_sensor
               device_class: occupancy
+    
+    entry_window:
+      name: Entry Window Threshold (Seconds)
+      description: Motion will only turn lights on if the occupancy sensor has been ON for less than this many seconds.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 30
+          unit_of_measurement: seconds
+          step: 1
 
     time_settings:
       name: "Time Settings"
@@ -145,6 +156,8 @@ blueprint:
                 - domain: person
 
 variables:
+  occupancy_sensor: !input occupancy_sensor
+  entry_window: !input entry_window
   people_to_check: !input people_to_check
   enable_time_condition: !input enable_time_condition
   enable_sun_condition: !input enable_sun_condition
@@ -171,10 +184,18 @@ action:
           - condition: trigger
             id: motion_on
 
-          # Condition 1: Occupancy was off before motion was detected
+          # Condition 1: Occupancy recently switched to ON (within entry_window seconds)
           - condition: template
             value_template: >-
-              {{ trigger.from_state is not none and trigger.from_state.state == 'off' }}
+              {% set occ = occupancy_sensor %}
+              {% if is_state(occ, 'off') %}
+                true
+              {% elif is_state(occ, 'on') %}
+                {% set last_changed = states[occ].last_changed.timestamp() if states[occ] is defined else 0 %}
+                {{ (now().timestamp() - last_changed) < (entry_window | int) }}
+              {% else %}
+                false
+              {% endif %}
 
           # Condition 2: Presence check
           - condition: template
