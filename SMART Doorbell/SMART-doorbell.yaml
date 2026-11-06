@@ -2,7 +2,7 @@ blueprint:
   name: SMART Doorbell
   description: >
     <h3><b>🔔 The Ultimate SMART Doorbell Controller</b></h3>
-    <h4>Version: 1.0</h4>
+    <h4>Version: 1.1</h4>
 
     <p>Most "smart" doorbells aren't actually that smart.. They just ping your phone and call it a day. This blueprint turns your basic doorbell press into an event based on your rules, your schedule, and who is actually home.</p>
 
@@ -32,10 +32,20 @@ blueprint:
         doorbell_binary_sensor:
           name: Doorbell Binary Sensor
           description: The binary sensor that detects when the doorbell is pressed.
+          default:
           selector:
             entity:
               filter:
                 - domain: binary_sensor
+
+        doorbell_event:
+          name: Doorbell Event
+          description: The event that triggers when the doorbell is pressed.
+          default:
+          selector:
+            entity:
+              filter:
+                - domain: event
         
         doorbell_image_entity:
           name: Doorbell Image Entity (Optional)
@@ -311,6 +321,7 @@ blueprint:
 
 variables:
   doorbell_binary_sensor: !input doorbell_binary_sensor
+  doorbell_event: !input doorbell_event
   doorbell_image_entity: !input doorbell_image_entity
 
   people_to_check: !input people_to_check
@@ -354,6 +365,14 @@ triggers:
     from: "off"
     to: "on"
     id: use_binary
+  
+  - platform: event.received
+    target:
+      entity_id: !input doorbell_event
+    options:
+      event_type:
+        - ring
+    id: use_event
 
 conditions:
   - condition: time
@@ -474,21 +493,22 @@ action:
           value_template: "{{ target_media_player_pause != {} and target_media_player_pause != [] }}"
       then:
         - repeat:
-          for_each: >
-            {% if target_media_player_pause.entity_id is string %}
-              {{ [target_media_player_pause.entity_id] }}
-            {% else %}
-              {{ target_media_player_pause.entity_id }}
-            {% endif %}
-          sequence:
-            - variables:
-                repeat_item: "{{ repeat.item }}"
-            - if:
-              - conditioin: template
-                value_template: "{{ states(repeat_item) in ['playing'] }}"
-              then:
-                - action: media_player.media_pause
-                  target: !input repeat_item
+            for_each: >
+              {% if target_media_player_pause.entity_id is string %}
+                {{ [target_media_player_pause.entity_id] }}
+              {% else %}
+                {{ target_media_player_pause.entity_id }}
+              {% endif %}
+            sequence:
+              - variables:
+                  repeat_item: "{{ repeat.item }}"
+              - if:
+                - condition: template
+                  value_template: "{{ states(repeat_item) in ['playing'] }}"
+                then:
+                  - action: media_player.media_pause
+                    target:
+                        entity_id: "{{ repeat_item }}"
 
     - if:
         - condition: template
@@ -509,17 +529,17 @@ action:
                     value_template: "{{ states(repeat_item) in ['on', 'playing'] and state_attr(repeat_item, 'volume_level') | float(0) > 0 }}"
                 then:
                   - repeat:
-                      count: !input percentage_volume_reduction_steps
+                      count: "{{ percentage_volume_reduction_steps }}"
                       sequence:
                         - action: media_player.volume_down
                           target:
                             entity_id: "{{ repeat_item }}"
                       
                   - delay:
-                      seconds: !input duration_volume_reduction_seconds
+                      seconds: "{{ duration_volume_reduction_seconds }}"
                           
                   - repeat:
-                      count: !input percentage_volume_reduction_steps
+                      count: "{{ percentage_volume_reduction_steps }}"
                       sequence:
                         - action: media_player.volume_up
                           target:
