@@ -32,7 +32,7 @@ blueprint:
         doorbell_binary_sensor:
           name: Doorbell Binary Sensor
           description: The binary sensor that detects when the doorbell is pressed.
-          default:
+          default: binary_sensor.default
           selector:
             entity:
               filter:
@@ -41,7 +41,7 @@ blueprint:
         doorbell_event:
           name: Doorbell Event
           description: The event that triggers when the doorbell is pressed.
-          default:
+          default: event.default
           selector:
             entity:
               filter:
